@@ -1,0 +1,148 @@
+---
+title: "palmer_carbonate_qc"
+author: "Kate Morkeski"
+date: "5/14/2021"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Load libraries and set path
+
+```{r}
+
+library(tidyverse)
+library(readxl)
+library(here)
+
+here("Palmer")
+
+```
+## Read in data
+
+```{r}
+
+pal2020 <- read_excel('LMG20-01_carbonate_summary.xlsx')
+
+pal2020 <- pal2020 %>%
+   rename(DIC_umolkg = "DIC_avg _umolkg-1",
+         TA_umolkg = "TA_umolkg",
+         Salinity_psu = "Salinity_to_use") 
+
+pal2020 <- pal2020 %>%
+  mutate(type = case_when(Depth != "underway" ~ "Niskin",
+                          TRUE ~ Depth))  %>%
+  mutate(depth = case_when(Depth == "underway" ~ "NA",
+                         TRUE ~ Depth))  
+
+pal2020$depth <- as.numeric(pal2020$depth)
+
+```
+
+## Plot data
+
+All samples
+
+```{r}
+  
+ggplot(pal2020, aes(x= Salinity_psu, y = DIC_umolkg, color = type))+ geom_point()
+ggplot(pal2020, aes(x= Salinity_psu, y = TA_umolkg, color = type))+ geom_point()
+ggplot(pal2020, aes(x= TA_umolkg, y = DIC_umolkg, color = type))+ geom_point()
+
+```
+Niskin samples
+
+```{r}
+
+ggplot(subset(pal2020, type == "Niskin"), aes(x= DIC_umolkg, y = -depth, color = Salinity_psu))+ geom_point() + scale_color_gradient(low="yellow", high="red")
+ggplot(subset(pal2020, type == "Niskin"), aes(x= TA_umolkg, y = -depth, color = Salinity_psu))+ geom_point() + scale_color_gradient(low="yellow", high="red")
+
+ggplot(subset(pal2020, type == "Niskin"), aes(x= Salinity_psu, y = DIC_umolkg, color = Event)) + geom_point() + scale_color_gradient(low="yellow", high="red")
+ggplot(subset(pal2020, type == "Niskin"), aes(x= Salinity_psu, y = TA_umolkg, color = Event)) + geom_point() + scale_color_gradient(low="yellow", high="red")
+ggplot(subset(pal2020, type == "Niskin"), aes(x= TA_umolkg, y = DIC_umolkg, color = Event)) + geom_point() + scale_color_gradient(low="yellow", high="red")
+
+```
+
+Surface Niskins
+
+```{r}
+# plot Niskin dic and ta vs depth, colored by event number
+ggplot(subset(pal2020, type == "Niskin" & depth < 100), aes(x= DIC_umolkg, y = -depth, color = Event))+ geom_point() + scale_color_gradient(low="yellow", high="red")
+ggplot(subset(pal2020, type == "Niskin" & depth < 100), aes(x= TA_umolkg, y = -depth, color = Event))+ geom_point() + scale_color_gradient(low="yellow", high="red")
+
+# plot Niskin dic and ta vs event number 
+# note large differences between some DIC replicates
+ggplot(subset(pal2020, type == "Niskin" ), aes(x= Event, y = DIC_umolkg, color = depth))+ geom_point() + scale_color_gradient(low="orange", high="red")
+ggplot(subset(pal2020, type == "Niskin" ), aes(x= Event, y = TA_umolkg, color = depth))+ geom_point() + scale_color_gradient(low="orange", high="red")
+
+```
+
+Underway samples
+
+```{r}
+
+ggplot(subset(pal2020, type == "underway"), aes(x= Salinity_psu, y = DIC_umolkg, color = Event))+ geom_point() + scale_color_gradient(low="aquamarine1", high="aquamarine4")
+ggplot(subset(pal2020, type == "underway"), aes(x= Salinity_psu, y = TA_umolkg, color = Event))+ geom_point() + scale_color_gradient(low="aquamarine1", high="aquamarine4")
+
+```
+## Read in, clean, and plot historical data
+
+```{r}
+
+# run knb-lter-pal.44.7.r downloaded from the EDI Data Portal
+# (find a way to do this straight from EDI site, or at least check for an updated version)
+# temporal coverage 1993-2018
+
+source("knb-lter-pal.44.7.r")
+
+historical <- dt1 
+
+historical <- historical %>%
+  mutate(DIC.1 = replace(DIC.1, DIC.1 <0, NA)) %>%  ## to replace -9.0
+  mutate(Alkalinity.2 = replace(Alkalinity.2, Alkalinity.2 <0, NA)) %>%  ## to replace -999 
+  mutate(Salinity = replace(Salinity, Salinity < 0, NA))  ## to replace -999
+
+# examine outlying values
+lowalk <- subset(historical, Alkalinity.1 < 2000 | Alkalinity.2 < 2000) # note one observation Alkalinity.1 = 10 umol/kg
+lowdic <- subset(historical, DIC.1 < 1800 | DIC.2 < 1800)
+lowsal <- subset(historical, Salinity < 1)
+
+# prepare for plotting
+
+# rename columns to match pal2020
+historical <- historical %>% 
+    rename(Salinity_psu = Salinity,
+           DIC_umolkg = DIC.1,
+           TA_umolkg = Alkalinity.1) %>% 
+    mutate(type = "historical")
+
+# eliminate low alkalinity value for plotting
+historical <- historical %>% 
+    filter (TA_umolkg > 10) 
+
+# plot dic and ta vs salinity, colored by depth 
+# note: plotting only DIC.1, and Alkalinity.1, not DIC.2 and Alkalinity.2
+ggplot(historical, aes(x= Salinity_psu, y = DIC_umolkg, color = -Depth))+ geom_point()
+ggplot(historical, aes(x= Salinity_psu, y = TA_umolkg, color = -Depth))+ geom_point()
+
+```
+
+## Plot 2020 and historical data
+
+```{r}
+
+# plot historical and 2020 dic and ta vs salinity, colored by type (historical, Niskin 2020, underway 2020)
+ggplot(historical, aes(x= Salinity_psu, y = DIC_umolkg, color = type))+ geom_point() +geom_point(data = pal2020 )
+ggplot(historical, aes(x= Salinity_psu, y = TA_umolkg, color = type))+ geom_point() +geom_point(data = pal2020 )
+
+```
+# Examine replicates
+
+```{r}
+
+replicates <- read_excel("LMG20-01_carbonate_replicates.xlsx")
+
