@@ -146,3 +146,8 @@ ggplot(historical, aes(x= Salinity_psu, y = TA_umolkg, color = type))+ geom_poin
 
 replicates <- read_excel("LMG20-01_carbonate_replicates.xlsx")
 
+ggplot(replicates, aes(x= DIC_avg_umolkg, y = DIC_diff_replicates, color = Depth))+ geom_point()
+ggplot(replicates, aes(x= TA_umolkg, y = TA_diff_replicates, color = Depth))+ geom_point()
+
+```
+
