@@ -20,6 +20,7 @@ library(readxl)
 library(lubridate)
 library(here)
 library(egg)
+library(easyr)
 
 here("palmer-carb-qc")
 
@@ -32,7 +33,7 @@ pal2020 <- read_excel('LMG20-01_carbonate_summary.xlsx')
 
 pal2020 <- pal2020 %>%
    rename(DIC_umolkg = "DIC_avg _umolkg-1",
-         TA_umolkg = "TA_umolkg",
+         TA_umolkg = "TA_umolkg-1",
          Salinity_psu = "Salinity_to_use") 
 
 pal2020 <- pal2020 %>%
@@ -42,6 +43,7 @@ pal2020 <- pal2020 %>%
                          TRUE ~ Depth))  
 
 pal2020$depth <- as.numeric(pal2020$depth)
+pal2020$year <- as.factor(year(pal2020$Date))
 
 ```
 
@@ -49,20 +51,29 @@ pal2020$depth <- as.numeric(pal2020$depth)
 
 ```{r}
 
-pal2023 <- read_csv('LMG23-01_carbonate_summary.csv')
+pal2023 <- read_xlsx('LMG23-01_carbonate_summary.xlsx')
 
 pal2023 <- pal2023 %>%
   rename(Salinity_psu = "Salinity_primary") %>%
-  mutate(Date = mdy(Date))
+  mutate(Date = ymd(Date)) 
 
-pal2023 <- pal2023 %>%
+pal2023$Time_UTC <- as.character(pal2023$Time_UTC)
+pal2023$Time_UTC <- right(pal2023$Time_UTC, 8) 
+
+pal2023 <- pal2023 |>
+    mutate(Time_UTC = case_when(Time_UTC == "00-01-01" ~ "00:00:00", TRUE ~ Time_UTC)) |>
+    mutate(Time_UTC = case_when(Time_UTC == "01-12-25" ~ "00:00:00", TRUE ~ Time_UTC)) |>
+    mutate(Time_UTC = case_when(Time_UTC == "03-01-01" ~ "00:00:00", TRUE ~ Time_UTC)) 
+
+pal2023 <- pal2023 |>
   mutate(type = case_when(Depth != "UW" ~ "Niskin",
                           Depth == "UW" ~ "underway"
-                          ))  %>%
-  mutate(depth = case_when(Depth == "UW" ~ "0",
+                          )) |>
+  mutate(Depth = case_when(Depth == "UW" ~ "0",
                          TRUE ~ Depth))  
 
-pal2023$depth <- as.numeric(pal2023$depth)
+pal2023$Depth <- as.numeric(pal2023$Depth)
+pal2023$year <- as.factor(pal2023$year)
 
 ```
 
@@ -72,18 +83,22 @@ pal2023$depth <- as.numeric(pal2023$depth)
 
 pal2024 <- read_csv('LMG24-01_carbonate_summary.csv')
 
-pal2024 <- pal2024 %>%
-  rename(Salinity_psu = "Salinity_primary") %>%
-  mutate(Date = mdy(Date))
+pal2024 <- pal2024 |>
+  rename(Salinity_psu = "Salinity_primary") |>
+  mutate(Date = ymd(Date)) |>
+  mutate(TA_Analysis_Date = mdy(TA_Analysis_Date)) |>
+  mutate(DIC_Analysis_Date = mdy(DIC_Analysis_Date))
+  
 
-pal2024 <- pal2024 %>%
+pal2024 <- pal2024 |>
   mutate(type = case_when(Depth != "underway" ~ "Niskin",
                           Depth == "underway" ~ "underway"
-                          ))  %>%
-  mutate(depth = case_when(Depth == "underway" ~ "0",
+                          ))  |>
+  mutate(Depth = case_when(Depth == "underway" ~ "0",
                          TRUE ~ Depth))  
 
-pal2024$depth <- as.numeric(pal2024$depth)
+pal2024$Depth <- as.numeric(pal2024$Depth)
+pal2024$year <- as.factor(pal2024$year)
 
 ```
 ## Plot data
@@ -103,45 +118,65 @@ ggsave("LMG20-01.png")
 plot1 <- ggplot(pal2023, aes(x= Salinity_psu, y = DIC_umolkg, color = type))+ geom_point()+labs(title = "LMG23-01")+theme(legend.position="none")
 plot2 <- ggplot(pal2023, aes(x= Salinity_psu, y = TA_umolkg, color = type))+ geom_point()+theme(legend.position="top")
 #ggplot(pal2023, aes(x= TA_umolkg, y = DIC_umolkg, color = type))+ geom_point()+labs(title = "LMG23-01")
-plot3 <- ggplot(pal2023, aes(x= DIC_umolkg, y = -depth, color = type))+ geom_point()+theme(legend.position="none")
-plot4 <- ggplot(pal2023, aes(x= TA_umolkg, y = -depth, color = type))+ geom_point()+theme(legend.position="none")
+plot3 <- ggplot(pal2023, aes(x= DIC_umolkg, y = -Depth, color = type))+ geom_point()+theme(legend.position="none")
+plot4 <- ggplot(pal2023, aes(x= TA_umolkg, y = -Depth, color = type))+ geom_point()+theme(legend.position="none")
 ggarrange(plot1, plot2, plot3, plot4, nrow = 2)
 ggsave("LMG23-01.png")
 
 plot1 <- ggplot(pal2024, aes(x= Salinity_psu, y = DIC_umolkg, color = type))+ geom_point()+labs(title = "LMG24-01")+theme(legend.position="none")
 plot2 <- ggplot(pal2024, aes(x= Salinity_psu, y = TA_umolkg, color = type))+ geom_point()+theme(legend.position="top")
 #ggplot(pal2024, aes(x= TA_umolkg, y = DIC_umolkg, color = type))+ geom_point()+labs(title = "LMG24-01")
-plot3 <- ggplot(pal2024, aes(x= DIC_umolkg, y = -depth, color = type))+ geom_point()+theme(legend.position="none")
-plot4 <- ggplot(pal2024, aes(x= TA_umolkg, y = -depth, color = type))+ geom_point()+theme(legend.position="none")
+plot3 <- ggplot(pal2024, aes(x= DIC_umolkg, y = -Depth, color = type))+ geom_point()+theme(legend.position="none")
+plot4 <- ggplot(pal2024, aes(x= TA_umolkg, y = -Depth, color = type))+ geom_point()+theme(legend.position="none")
 ggarrange(plot1, plot2, plot3, plot4, nrow = 2)
 ggsave("LMG24-01.png")
 
 
 ```
+```{r}
+
+plot1 <- ggplot(pal2023, aes(x= Salinity_psu, y = DIC_umolkg, color = initial_flag))+ geom_point()+labs(title = "LMG23-01")+theme(legend.position="none")
+plot2 <- ggplot(pal2023, aes(x= Salinity_psu, y = TA_umolkg, color = initial_flag))+ geom_point()+theme(legend.position="top")
+#ggplot(pal2023, aes(x= TA_umolkg, y = DIC_umolkg, color = type))+ geom_point()+labs(title = "LMG23-01")
+plot3 <- ggplot(pal2023, aes(x= DIC_umolkg, y = -Depth, color = initial_flag))+ geom_point()+theme(legend.position="none")
+plot4 <- ggplot(pal2023, aes(x= TA_umolkg, y = -Depth, color = initial_flag))+ geom_point()+theme(legend.position="none")
+ggarrange(plot1, plot2, plot3, plot4, nrow = 2)
+ggsave("LMG23-01_weirdIDs.png")
+
+plot1 <- ggplot(pal2024, aes(x= Salinity_psu, y = DIC_umolkg, color = initial_flag))+ geom_point()+labs(title = "LMG24-01")+theme(legend.position="none")
+plot2 <- ggplot(pal2024, aes(x= Salinity_psu, y = TA_umolkg, color = initial_flag))+ geom_point()+theme(legend.position="top")
+#ggplot(pal2024, aes(x= TA_umolkg, y = DIC_umolkg, color = type))+ geom_point()+labs(title = "LMG24-01")
+plot3 <- ggplot(pal2024, aes(x= DIC_umolkg, y = -Depth, color = initial_flag))+ geom_point()+theme(legend.position="none")
+plot4 <- ggplot(pal2024, aes(x= TA_umolkg, y = -Depth, color = initial_flag))+ geom_point()+theme(legend.position="none")
+ggarrange(plot1, plot2, plot3, plot4, nrow = 2)
+ggsave("LMG24-01_weirdIDs.png")
+
+```
+
 Niskin samples
 
 ```{r}
 
-ggplot(subset(pal2020, type == "Niskin"), aes(x= DIC_umolkg, y = -depth, color = Salinity_psu))+ geom_point() + scale_color_gradient(low="yellow", high="red")
-ggplot(subset(pal2020, type == "Niskin"), aes(x= TA_umolkg, y = -depth, color = Salinity_psu))+ geom_point() + scale_color_gradient(low="yellow", high="red")
-
-ggplot(subset(pal2020, type == "Niskin"), aes(x= Salinity_psu, y = DIC_umolkg, color = Event)) + geom_point() + scale_color_gradient(low="yellow", high="red")
-ggplot(subset(pal2020, type == "Niskin"), aes(x= Salinity_psu, y = TA_umolkg, color = Event)) + geom_point() + scale_color_gradient(low="yellow", high="red")
-ggplot(subset(pal2020, type == "Niskin"), aes(x= TA_umolkg, y = DIC_umolkg, color = Event)) + geom_point() + scale_color_gradient(low="yellow", high="red")
+# ggplot(subset(pal2020, type == "Niskin"), aes(x= DIC_umolkg, y = -depth, color = Salinity_psu))+ geom_point() + scale_color_gradient(low="yellow", high="red")
+# ggplot(subset(pal2020, type == "Niskin"), aes(x= TA_umolkg, y = -depth, color = Salinity_psu))+ geom_point() + scale_color_gradient(low="yellow", high="red")
+# 
+# ggplot(subset(pal2020, type == "Niskin"), aes(x= Salinity_psu, y = DIC_umolkg, color = Event)) + geom_point() + scale_color_gradient(low="yellow", high="red")
+# ggplot(subset(pal2020, type == "Niskin"), aes(x= Salinity_psu, y = TA_umolkg, color = Event)) + geom_point() + scale_color_gradient(low="yellow", high="red")
+#ggplot(subset(pal2020, type == "Niskin"), aes(x= TA_umolkg, y = DIC_umolkg, color = Event)) + geom_point() + scale_color_gradient(low="yellow", high="red")
 
 ```
 
 Surface Niskins
 
 ```{r}
-# plot Niskin dic and ta vs depth, colored by event number
-ggplot(subset(pal2020, type == "Niskin" & depth < 100), aes(x= DIC_umolkg, y = -depth, color = Event))+ geom_point() + scale_color_gradient(low="yellow", high="red")
-ggplot(subset(pal2020, type == "Niskin" & depth < 100), aes(x= TA_umolkg, y = -depth, color = Event))+ geom_point() + scale_color_gradient(low="yellow", high="red")
-
-# plot Niskin dic and ta vs event number 
-# note large differences between some DIC replicates
-ggplot(subset(pal2020, type == "Niskin" ), aes(x= Event, y = DIC_umolkg, color = depth))+ geom_point() + scale_color_gradient(low="orange", high="red")
-ggplot(subset(pal2020, type == "Niskin" ), aes(x= Event, y = TA_umolkg, color = depth))+ geom_point() + scale_color_gradient(low="orange", high="red")
+# # plot Niskin dic and ta vs depth, colored by event number
+# ggplot(subset(pal2020, type == "Niskin" & depth < 100), aes(x= DIC_umolkg, y = -depth, color = Event))+ geom_point() + scale_color_gradient(low="yellow", high="red")
+# ggplot(subset(pal2020, type == "Niskin" & depth < 100), aes(x= TA_umolkg, y = -depth, color = Event))+ geom_point() + scale_color_gradient(low="yellow", high="red")
+# 
+# # plot Niskin dic and ta vs event number 
+# # note large differences between some DIC replicates
+# ggplot(subset(pal2020, type == "Niskin" ), aes(x= Event, y = DIC_umolkg, color = depth))+ geom_point() + scale_color_gradient(low="orange", high="red")
+# ggplot(subset(pal2020, type == "Niskin" ), aes(x= Event, y = TA_umolkg, color = depth))+ geom_point() + scale_color_gradient(low="orange", high="red")
 
 ```
 
@@ -149,10 +184,9 @@ Underway samples
 
 ```{r}
 
-ggplot(subset(pal2020, type == "underway"), aes(x= Salinity_psu, y = DIC_umolkg, color = Event))+ geom_point() 
-ggplot(subset(pal2020, type == "underway"), aes(x= Station, y = DIC_umolkg))+ geom_point()
-+ scale_color_gradient(low="aquamarine1", high="aquamarine4")
-ggplot(subset(pal2020, type == "underway"), aes(x= Salinity_psu, y = TA_umolkg, color = Event))+ geom_point() + scale_color_gradient(low="aquamarine1", high="aquamarine4")
+# ggplot(subset(pal2020, type == "underway"), aes(x= Salinity_psu, y = DIC_umolkg, color = Event))+ geom_point() 
+# ggplot(subset(pal2020, type == "underway"), aes(x= Station, y = DIC_umolkg))+ geom_point() + scale_color_gradient(low="aquamarine1", high="aquamarine4")
+# ggplot(subset(pal2020, type == "underway"), aes(x= Salinity_psu, y = TA_umolkg, color = Event))+ geom_point() + scale_color_gradient(low="aquamarine1", high="aquamarine4")
 
 ```
 ## Read in, clean, and plot historical data
@@ -162,9 +196,11 @@ ggplot(subset(pal2020, type == "underway"), aes(x= Salinity_psu, y = TA_umolkg, 
 # run knb-lter-pal.44.8.r downloaded from the EDI Data Portal
 # temporal coverage 1993-2019
 
-source("knb-lter-pal.44.8.r")
+#source("knb-lter-pal.44.8.r")
 
-historical <- dt1 
+historical <- read_csv("D44_CruiseDIC_1993to2019.csv")
+
+#historical <- dt1 
 
 historical <- historical %>%
   mutate(DIC1 = replace(DIC1, DIC1 <0, NA)) %>%  ## to replace -9.0
@@ -185,10 +221,7 @@ historical <- historical %>%
            TA_umolkg = Alkalinity1) %>% 
     mutate(type = "historical") 
 
-historical <- historical %>% 
-    mutate(year = year(DatetimeGMT))
-
-historical$year <- as.factor(historical$year)
+historical$year <- as.factor(year(historical$DatetimeGMT))
 
 # eliminate some oddly low values from 1996 
 # one low alkalinity of 10, two samples with DIC of 1212 and 1225 umol/kg
@@ -211,11 +244,11 @@ ggplot(historical, aes(x= Salinity_psu, y = TA_umolkg, color = -Depth))+ geom_po
 ggplot(historical, aes(x= DIC_umolkg, y = -Depth, color = Salinity_psu))+ geom_point()
 ggplot(historical, aes(x= TA_umolkg, y = -Depth, color = Salinity_psu))+ geom_point()
 
-ggplot(historical, aes(x= DIC_umolkg, y = -Depth, color = year))+ geom_point()
-ggplot(historical, aes(x= TA_umolkg, y = -Depth, color = year))+ geom_point()
+ggplot(historical, aes(x= DIC_umolkg, y = -Depth, color = year))+ geom_point()+ scale_colour_viridis_d()
+ggplot(historical, aes(x= TA_umolkg, y = -Depth, color = year))+ geom_point()+ scale_colour_viridis_d()
 
-ggplot(historical, aes(x= Salinity_psu, y = DIC_umolkg, color = year))+ geom_point()+scale_fill_discrete(year)
-ggplot(historical, aes(x= Salinity_psu, y = TA_umolkg, color = year))+ geom_point()
+ggplot(historical, aes(x= Salinity_psu, y = DIC_umolkg, color = year))+ geom_point()+scale_colour_viridis_d()
+ggplot(historical, aes(x= Salinity_psu, y = TA_umolkg, color = year))+ geom_point()+ scale_colour_viridis_d()
 
 ggplot(histund, aes(x= Salinity_psu, y = DIC_umolkg, color = year))+ geom_point()+scale_fill_discrete(year)
 ggplot(histund, aes(x= NominalStation, y = DIC_umolkg, color = year))+ geom_point()+scale_fill_discrete(year)
@@ -231,18 +264,74 @@ ggplot(histNiskin, aes(x= TA_umolkg, y = -Depth, color = Salinity_psu))+ geom_po
 ```{r}
 
 # plot historical and 2020 dic and ta vs salinity, colored by type (historical, Niskin 2020, underway 2020)
-ggplot(historical, aes(x= Salinity_psu, y = DIC_umolkg, color = type))+ geom_point() +geom_point(data = pal2020 )
-ggplot(historical, aes(x= Salinity_psu, y = TA_umolkg, color = type))+ geom_point() +geom_point(data = pal2020 )
+plot1 <- ggplot(historical, aes(x= Salinity_psu, y = DIC_umolkg, color = type))+ geom_point() +geom_point(data = pal2020 )+geom_point(data = pal2023)+geom_point(data = pal2024)+scale_colour_viridis_d()
+plot2 <- ggplot(historical, aes(x= Salinity_psu, y = TA_umolkg, color = type))+ geom_point() +geom_point(data = pal2020 )+geom_point(data = pal2023)+geom_point(data = pal2024)+scale_colour_viridis_d()+theme(legend.position="none")
+
+ggarrange(plot1, plot2)
+ggsave("Palmer_thru_2024_by_type.png")
+
+plot1 <- ggplot(historical, aes(x= Salinity_psu, y = DIC_umolkg, color = year))+ geom_point() +geom_point(data = pal2020 )+geom_point(data = pal2023)+geom_point(data = pal2024)+scale_colour_viridis_d()
+plot2 <- ggplot(historical, aes(x= Salinity_psu, y = TA_umolkg, color = year))+ geom_point() +geom_point(data = pal2020 )+geom_point(data = pal2023)+geom_point(data = pal2024)+scale_colour_viridis_d()+theme(legend.position="none")
+
+ggarrange(plot1, plot2)
+ggsave("Palmer_thru_2024_by_Salinity.png")
+
+plot1 <- ggplot(historical, aes(x= year, y = DIC_umolkg, color = Salinity_psu))+ geom_point() +geom_point(data = pal2020 )+geom_point(data = pal2023)+geom_point(data = pal2024)+scale_colour_viridis_c()+scale_x_discrete(breaks = seq(1993, 2025, by = 2))
+plot2 <- ggplot(historical, aes(x= year, y = TA_umolkg, color = Salinity_psu))+ geom_point() +geom_point(data = pal2020 )+geom_point(data = pal2023)+geom_point(data = pal2024)+scale_colour_viridis_c()+theme(legend.position="none")+scale_x_discrete(breaks = seq(1993, 2025, by = 2))
+
+ggarrange(plot1, plot2)
+ggsave("Palmer_thru_2024_by_year.png")
+
+# TODO: filter new data for underway and plot with historical
+#ggplot(histund, aes(x= NominalStation, y = DIC_umolkg, color = year))+ geom_point()+scale_fill_discrete(year)
 
 ```
 # Examine replicates
 
 ```{r}
 
-replicates <- read_excel("LMG20-01_carbonate_replicates.xlsx")
+#replicates <- read_excel("LMG20-01_carbonate_replicates.xlsx")
 
-ggplot(replicates, aes(x= DIC_avg_umolkg, y = DIC_diff_replicates, color = Depth))+ geom_point()
-ggplot(replicates, aes(x= TA_umolkg, y = TA_diff_replicates, color = Depth))+ geom_point()
+pal2023$replicate_id <- paste0(pal2023$Station, "-", pal2023$Depth)
+pal2024$replicate_id <- paste0(pal2024$Station, "-", pal2024$Depth)
+
+rep_2023 <- pal2023  |> 
+  group_by(replicate_id) |>
+  summarize(dic_avg = mean(DIC_umolkg),
+            dic_sd = sd(DIC_umolkg),
+            ta_avg = mean(TA_umolkg),
+            ta_sd = sd(TA_umolkg))
+
+rep_2024 <- pal2024  |> 
+  group_by(replicate_id) |>
+  summarize(dic_avg = mean(DIC_umolkg),
+            dic_sd = sd(DIC_umolkg),
+            ta_avg = mean(TA_umolkg),
+            ta_sd = sd(TA_umolkg))
+
+rep_2023$station <- left(rep_2023$replicate_id, 7)
+#rep_2023$depth <- right(rep_2023$replicate_id, 2)
+rep_2024$station <- left(rep_2024$replicate_id, 7)
+
+rep_2023$dic_lower <- rep_2023$dic_avg - rep_2023$dic_sd
+rep_2023$dic_upper <- rep_2023$dic_avg + rep_2023$dic_sd
+rep_2024$dic_lower <- rep_2024$dic_avg - rep_2024$dic_sd
+rep_2024$dic_upper <- rep_2024$dic_avg + rep_2024$dic_sd
+
+rep_2023$ta_lower <- rep_2023$ta_avg - rep_2023$ta_sd
+rep_2023$ta_upper <- rep_2023$ta_avg + rep_2023$ta_sd
+rep_2024$ta_lower <- rep_2024$ta_avg - rep_2024$ta_sd
+rep_2024$ta_upper <- rep_2024$ta_avg + rep_2024$ta_sd
+
+ggplot(rep_2023, aes(x= station, y = dic_avg))+ geom_point()+geom_errorbar(aes(ymin = dic_lower, ymax = dic_upper), width = 0.2)+theme(axis.text.x = element_text(angle = 60, hjust = 1))+labs(title = "LMG23-01 DIC replicate average and standard deviation")
+ggplot(rep_2023, aes(x= station, y = ta_avg))+ geom_point()+geom_errorbar(aes(ymin = ta_lower, ymax = ta_upper), width = 0.2)+theme(axis.text.x = element_text(angle = 60, hjust = 1))+labs(title = "LMG23-01 TA replicate average and standard deviation")
+ggplot(rep_2024, aes(x= station, y = dic_avg))+ geom_point()+geom_errorbar(aes(ymin = dic_lower, ymax = dic_upper), width = 0.2)+theme(axis.text.x = element_text(angle = 60, hjust = 1))+labs(title = "LMG24-01 DIC replicate average and standard deviation")
+ggplot(rep_2024, aes(x= station, y = ta_avg))+ geom_point()+geom_errorbar(aes(ymin = ta_lower, ymax = ta_upper), width = 0.2)+theme(axis.text.x = element_text(angle = 60, hjust = 1))+labs(title = "LMG24-01 TA replicate average and standard deviation")
+
+# ggplot(replicates, aes(x= DIC_avg_umolkg, y = DIC_diff_replicates, color = Depth))+ geom_point()
+# ggplot(replicates, aes(x= TA_umolkg, y = TA_diff_replicates, color = Depth))+ geom_point()
 
 ```
+
+## TODO: flag and format data for submitting
 
