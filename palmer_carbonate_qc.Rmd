@@ -85,7 +85,7 @@ pal2024 <- read_csv('LMG24-01_carbonate_summary_draft.csv')
 
 pal2024 <- pal2024 |>
   rename(Salinity_psu = "Salinity_primary") |>
-  mutate(Date = ymd(Date)) |>
+  mutate(Date = mdy(Date)) |>
   mutate(TA_Analysis_Date = mdy(TA_Analysis_Date)) |>
   mutate(DIC_Analysis_Date = mdy(DIC_Analysis_Date))
   
@@ -131,9 +131,9 @@ plot4 <- ggplot(pal2024, aes(x= TA_umolkg, y = -Depth, color = type))+ geom_poin
 ggarrange(plot1, plot2, plot3, plot4, nrow = 2)
 ggsave("LMG24-01.png")
 
-
 ```
 ```{r}
+
 # plot by initial flag
 
 plot1 <- ggplot(pal2023, aes(x= Salinity_psu, y = DIC_umolkg, color = initial_flag))+ geom_point()+labs(title = "LMG23-01")+theme(legend.position="none")
@@ -170,42 +170,6 @@ ggplot(pal2024, aes(x= Salinity_psu, y = TA_umolkg, color = TA_Analysis_Date))+ 
 # TA run date 2024-11-22 included some very high TA values. Standard was the same batch as previous two run days and uncorrected values were very similar. Sample reps in good agreement.
 ```
 
-Niskin samples
-
-```{r}
-
-# ggplot(subset(pal2020, type == "Niskin"), aes(x= DIC_umolkg, y = -depth, color = Salinity_psu))+ geom_point() + scale_color_gradient(low="yellow", high="red")
-# ggplot(subset(pal2020, type == "Niskin"), aes(x= TA_umolkg, y = -depth, color = Salinity_psu))+ geom_point() + scale_color_gradient(low="yellow", high="red")
-# 
-# ggplot(subset(pal2020, type == "Niskin"), aes(x= Salinity_psu, y = DIC_umolkg, color = Event)) + geom_point() + scale_color_gradient(low="yellow", high="red")
-# ggplot(subset(pal2020, type == "Niskin"), aes(x= Salinity_psu, y = TA_umolkg, color = Event)) + geom_point() + scale_color_gradient(low="yellow", high="red")
-#ggplot(subset(pal2020, type == "Niskin"), aes(x= TA_umolkg, y = DIC_umolkg, color = Event)) + geom_point() + scale_color_gradient(low="yellow", high="red")
-
-```
-
-Surface Niskins
-
-```{r}
-# # plot Niskin dic and ta vs depth, colored by event number
-# ggplot(subset(pal2020, type == "Niskin" & depth < 100), aes(x= DIC_umolkg, y = -depth, color = Event))+ geom_point() + scale_color_gradient(low="yellow", high="red")
-# ggplot(subset(pal2020, type == "Niskin" & depth < 100), aes(x= TA_umolkg, y = -depth, color = Event))+ geom_point() + scale_color_gradient(low="yellow", high="red")
-# 
-# # plot Niskin dic and ta vs event number 
-# # note large differences between some DIC replicates
-# ggplot(subset(pal2020, type == "Niskin" ), aes(x= Event, y = DIC_umolkg, color = depth))+ geom_point() + scale_color_gradient(low="orange", high="red")
-# ggplot(subset(pal2020, type == "Niskin" ), aes(x= Event, y = TA_umolkg, color = depth))+ geom_point() + scale_color_gradient(low="orange", high="red")
-
-```
-
-Underway samples
-
-```{r}
-
-# ggplot(subset(pal2020, type == "underway"), aes(x= Salinity_psu, y = DIC_umolkg, color = Event))+ geom_point() 
-# ggplot(subset(pal2020, type == "underway"), aes(x= Station, y = DIC_umolkg))+ geom_point() + scale_color_gradient(low="aquamarine1", high="aquamarine4")
-# ggplot(subset(pal2020, type == "underway"), aes(x= Salinity_psu, y = TA_umolkg, color = Event))+ geom_point() + scale_color_gradient(low="aquamarine1", high="aquamarine4")
-
-```
 ## Read in, clean, and plot historical data
 
 ```{r}
@@ -273,7 +237,6 @@ ggplot(histund, aes(x= year, y = DIC_umolkg, color = year))+ geom_point()+scale_
 ggplot(histNiskin, aes(x= DIC_umolkg, y = -Depth, color = Salinity_psu))+ geom_point()+labs(title = "Palmer historical Niskins by depth and salinity")
 ggplot(histNiskin, aes(x= TA_umolkg, y = -Depth, color = Salinity_psu))+ geom_point()+labs(title = "Palmer historical Niskins by depth and salinity")
 
-
 ```
 
 ## Plot historical and new data
@@ -324,8 +287,17 @@ ggplot(histNiskin, aes(x= Salinity_psu, y = TA_umolkg, color = year))+ geom_poin
 
 #replicates <- read_excel("LMG20-01_carbonate_replicates.xlsx")
 
+pal2020$replicate_id <- paste0(pal2020$Station, "-", pal2020$Depth)
 pal2023$replicate_id <- paste0(pal2023$Station, "-", pal2023$Depth)
 pal2024$replicate_id <- paste0(pal2024$Station, "-", pal2024$Depth)
+
+rep_2020 <- pal2020  |> 
+  group_by(replicate_id) |>
+  summarize(dic_avg = mean(DIC_umolkg),
+            dic_sd = sd(DIC_umolkg),
+            ta_avg = mean(TA_umolkg),
+            ta_sd = sd(TA_umolkg))
+
 
 rep_2023 <- pal2023  |> 
   group_by(replicate_id) |>
@@ -345,16 +317,22 @@ rep_2023$station <- left(rep_2023$replicate_id, 7)
 #rep_2023$depth <- right(rep_2023$replicate_id, 2)
 rep_2024$station <- left(rep_2024$replicate_id, 7)
 
+rep_2020$dic_lower <- rep_2020$dic_avg - rep_2020$dic_sd
+rep_2020$dic_upper <- rep_2020$dic_avg + rep_2020$dic_sd
 rep_2023$dic_lower <- rep_2023$dic_avg - rep_2023$dic_sd
 rep_2023$dic_upper <- rep_2023$dic_avg + rep_2023$dic_sd
 rep_2024$dic_lower <- rep_2024$dic_avg - rep_2024$dic_sd
 rep_2024$dic_upper <- rep_2024$dic_avg + rep_2024$dic_sd
 
+rep_2020$ta_lower <- rep_2020$ta_avg - rep_2020$ta_sd
+rep_2020$ta_upper <- rep_2020$ta_avg + rep_2020$ta_sd
 rep_2023$ta_lower <- rep_2023$ta_avg - rep_2023$ta_sd
 rep_2023$ta_upper <- rep_2023$ta_avg + rep_2023$ta_sd
 rep_2024$ta_lower <- rep_2024$ta_avg - rep_2024$ta_sd
 rep_2024$ta_upper <- rep_2024$ta_avg + rep_2024$ta_sd
 
+ggplot(rep_2020, aes(x= replicate_id, y = dic_avg))+ geom_point()+geom_errorbar(aes(ymin = dic_lower, ymax = dic_upper), width = 0.2)+theme(axis.text.x = element_text(angle = 60, hjust = 1))+labs(title = "LMG20-01 DIC replicate average and standard deviation")
+ggplot(rep_2020, aes(x= replicate_id, y = ta_avg))+ geom_point()+geom_errorbar(aes(ymin = ta_lower, ymax = ta_upper), width = 0.2)+theme(axis.text.x = element_text(angle = 60, hjust = 1))+labs(title = "LMG20-01 TA replicate average and standard deviation")
 ggplot(rep_2023, aes(x= station, y = dic_avg))+ geom_point()+geom_errorbar(aes(ymin = dic_lower, ymax = dic_upper), width = 0.2)+theme(axis.text.x = element_text(angle = 60, hjust = 1))+labs(title = "LMG23-01 DIC replicate average and standard deviation")
 ggplot(rep_2023, aes(x= station, y = ta_avg))+ geom_point()+geom_errorbar(aes(ymin = ta_lower, ymax = ta_upper), width = 0.2)+theme(axis.text.x = element_text(angle = 60, hjust = 1))+labs(title = "LMG23-01 TA replicate average and standard deviation")
 ggplot(rep_2024, aes(x= station, y = dic_avg))+ geom_point()+geom_errorbar(aes(ymin = dic_lower, ymax = dic_upper), width = 0.2)+theme(axis.text.x = element_text(angle = 60, hjust = 1))+labs(title = "LMG24-01 DIC replicate average and standard deviation")
@@ -365,5 +343,57 @@ ggplot(rep_2024, aes(x= station, y = ta_avg))+ geom_point()+geom_errorbar(aes(ym
 
 ```
 
-## TODO: flag and format data for submitting
+## Format data for submitting
+
+```{r}
+
+# regularize columns
+
+headers <- c("Date", "Time_UTC", "Station", "Depth", "Salinity_psu", "TA_umolkg", "TA_sd", "DIC_umolkg", "DIC_sd", "ID", "initial_flag", "Comment", "type", "replicate_id")
+
+pub2023 <- pal2023[, headers]
+pub2024 <- pal2024[, headers]
+
+pub2023$Cruise_ID <- "LMG23-01"
+pub2024$Cruise_ID <- "LMG24-01"
+
+pal2024$Time_UTC <- as.character(pal2024$Time_UTC)
+
+pub2023 <- pub2023 |>
+  rename(Sample_ID = ID) |> 
+  rename(TA_umol_per_kg = TA_umolkg) |>
+  rename(TA_std_dev = TA_sd) |>
+  rename(DIC_umol_per_kg = DIC_umolkg) |>
+  rename(DIC_std_dev = DIC_sd) |>
+  rename(Processing_flag = initial_flag) |>
+  rename(Processing_Notes = Comment) |>
+  rename(Type = type) |> 
+  rename(Replicate_ID = replicate_id)
+
+pub2023 <- pub2023 |>
+  mutate(across(c(DIC_umol_per_kg, DIC_std_dev, TA_umol_per_kg, TA_std_dev), round, digits = 1))
+
+pub2024 <- pub2024 |>
+  rename(Sample_ID = ID) |> 
+  rename(TA_umol_per_kg = TA_umolkg) |>
+  rename(TA_std_dev = TA_sd) |>
+  rename(DIC_umol_per_kg = DIC_umolkg) |>
+  rename(DIC_std_dev = DIC_sd) |>
+  rename(Processing_flag = initial_flag) |>
+  rename(Processing_Notes = Comment) |>
+  rename(Type = type) |> 
+  rename(Replicate_ID = replicate_id)
+
+pub2024 <- pub2024 |>
+  mutate(across(c(DIC_umol_per_kg, DIC_std_dev, TA_umol_per_kg, TA_std_dev), round, digits = 1))
+
+headers <- c("Cruise_ID", "Date", "Time_UTC", "Station", "Depth", "Sample_ID", "Salinity_psu", "DIC_umol_per_kg", "DIC_std_dev", "TA_umol_per_kg", "TA_std_dev",  "Processing_flag", "Processing_Notes", "Type", "Replicate_ID")
+
+pub2023 <- pub2023[, headers]
+pub2024 <- pub2024[, headers]
+
+write_csv(pub2023, "LMG23-01_carbonate_summary.csv")
+write_csv(pub2024, "LMG24-01_carbonate_summary.csv")
+
+```
 
